@@ -1,0 +1,185 @@
+// Prisma schema for n-life running app
+// Prisma 7 — generator uses "prisma-client" provider
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth.js required models ─────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?   // hashed, only for credentials auth
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  runs          Run[]
+  weeklyPlans   WeeklyPlan[]
+  coachScores   CoachScore[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─── Training Log ─────────────────────────────────────────────────────────────
+
+model Run {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime @db.Date
+  distanceKm  Float
+  durationMin Float?   // total minutes
+  paceMinKm   Float?   // minutes per km
+  heartRate   Int?     // average bpm
+  hrZone      Int?     // 1–5
+  incline     Float?   // % grade average
+  rpe         Int?     // 1–10 Rate of Perceived Exertion
+  feelingTags String[] // e.g. ["Strong", "Tired"]
+  notes       String?  @db.Text
+  rawNotes    String?  @db.Text // preserved exactly as entered
+  workoutType String?  // "Easy", "Tempo", "Long", "Interval", "Recovery", "CrossTrain"
+  isSkipped   Boolean  @default(false)
+  isModified  Boolean  @default(false)
+  importedAt  DateTime? // set when imported from spreadsheet
+
+  // Link to planned workout if this was a planned run
+  dailyWorkoutId String?
+  dailyWorkout   DailyWorkout? @relation(fields: [dailyWorkoutId], references: [id])
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@map("runs")
+}
+
+// ─── Training Plans ───────────────────────────────────────────────────────────
+
+model WeeklyPlan {
+  id          String   @id @default(cuid())
+  userId      String
+  weekStart   DateTime @db.Date // Monday of the plan week
+  weekEnd     DateTime @db.Date // Sunday of the plan week
+  status      String   @default("active") // "active", "completed", "superseded"
+  generatedAt DateTime @default(now())
+
+  // Context snapshot used to generate this plan
+  fatigueScore      Float?
+  consistencyScore  Float?
+  adaptationScore   Float?
+
+  // Special requests entered by user before generation
+  specialRequests   String? @db.Text
+  constraintTags    String[] // e.g. ["no-treadmill", "travel", "low-intensity"]
+
+  // Full AI response stored for debugging/history
+  aiRawResponse     String? @db.Text
+  coachingNotes     String? @db.Text
+  adaptationReason  String? @db.Text
+  riskWarnings      String? @db.Text
+
+  dailyWorkouts DailyWorkout[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, weekStart])
+  @@map("weekly_plans")
+}
+
+model DailyWorkout {
+  id           String   @id @default(cuid())
+  weeklyPlanId String
+  dayOfWeek    Int      // 1=Monday … 7=Sunday
+  date         DateTime @db.Date
+  workoutType  String   // "Easy", "Tempo", "Long", "Interval", "Recovery", "Rest", "CrossTrain"
+  distanceKm   Float?
+  durationMin  Float?
+  instructions String?  @db.Text
+  purpose      String?  // brief coaching note
+  modifications String? @db.Text // optional easier/harder alternatives
+  isRestDay    Boolean  @default(false)
+  isCompleted  Boolean  @default(false)
+
+  weeklyPlan WeeklyPlan @relation(fields: [weeklyPlanId], references: [id], onDelete: Cascade)
+  runs       Run[]
+
+  @@index([weeklyPlanId])
+  @@map("daily_workouts")
+}
+
+// ─── Coach Scores ─────────────────────────────────────────────────────────────
+
+model CoachScore {
+  id               String   @id @default(cuid())
+  userId           String
+  calculatedAt     DateTime @default(now())
+  windowDays       Int      @default(28) // how many days of data were used
+  fatigueScore     Float    // 0–100
+  consistencyScore Float    // 0–100
+  adaptationScore  Float    // 0–100
+
+  // Breakdown inputs stored for transparency
+  totalRunsPlanned    Int?
+  totalRunsCompleted  Int?
+  totalRunsSkipped    Int?
+  avgRpe              Float?
+  avgHrZone           Float?
+  longestRunKm        Float?
+  recentMileageKm     Float?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, calculatedAt])
+  @@map("coach_scores")
+}
