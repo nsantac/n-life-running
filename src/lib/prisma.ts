@@ -1,16 +1,17 @@
 import { PrismaClient } from "@/generated/prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
 function makePrismaClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
-  return new PrismaClient({ adapter })
+  // Prisma Postgres requires the prisma+postgres:// Accelerate URL for app queries.
+  // The direct postgres:// URL (DATABASE_DIRECT_URL) is used only for CLI migrations.
+  return new PrismaClient({
+    accelerateUrl: process.env.DATABASE_URL!,
+  })
 }
 
-// Reuse client across hot reloads in development
 export const prisma = globalForPrisma.prisma ?? makePrismaClient()
 
 if (process.env.NODE_ENV !== "production") {
