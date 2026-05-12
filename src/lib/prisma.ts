@@ -1,15 +1,14 @@
 import { PrismaClient } from "@/generated/prisma/client"
+import { withAccelerate } from "@prisma/extension-accelerate"
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+  prisma: ReturnType<typeof makePrismaClient> | undefined
 }
 
 function makePrismaClient() {
-  // Prisma Postgres requires the prisma+postgres:// Accelerate URL for app queries.
-  // The direct postgres:// URL (DATABASE_DIRECT_URL) is used only for CLI migrations.
   return new PrismaClient({
     accelerateUrl: process.env.DATABASE_URL!,
-  })
+  }).$extends(withAccelerate())
 }
 
 export const prisma = globalForPrisma.prisma ?? makePrismaClient()
