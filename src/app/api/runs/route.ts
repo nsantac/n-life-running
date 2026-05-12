@@ -41,27 +41,31 @@ export async function POST(req: NextRequest) {
   // Auto-calculate pace if we have both distance and duration
   const paceMinKm = durationMin && distanceKm ? durationMin / distanceKm : undefined
 
-  const run = await prisma.run.create({
-    data: {
-      userId: session.user.id,
-      date: new Date(date),
-      distanceKm,
-      durationMin: durationMin ?? null,
-      paceMinKm: paceMinKm ?? null,
-      heartRate: heartRate ?? null,
-      hrZone: hrZone ?? null,
-      incline: incline ?? null,
-      rpe: rpe ?? null,
-      feelingTags,
-      workoutType: workoutType ?? null,
-      notes: notes ?? null,
-      rawNotes: notes ?? null,
-      isSkipped,
-      isModified,
-    },
-  })
-
-  return NextResponse.json({ ok: true, run }, { status: 201 })
+  try {
+    const run = await prisma.run.create({
+      data: {
+        userId: session.user.id,
+        date: new Date(date),
+        distanceKm,
+        durationMin: durationMin ?? null,
+        paceMinKm: paceMinKm ?? null,
+        heartRate: heartRate ?? null,
+        hrZone: hrZone ?? null,
+        incline: incline ?? null,
+        rpe: rpe ?? null,
+        feelingTags,
+        workoutType: workoutType ?? null,
+        notes: notes ?? null,
+        rawNotes: notes ?? null,
+        isSkipped,
+        isModified,
+      },
+    })
+    return NextResponse.json({ ok: true, run }, { status: 201 })
+  } catch (e) {
+    console.error("Failed to create run:", e)
+    return NextResponse.json({ error: "Failed to save run. Please try again." }, { status: 500 })
+  }
 }
 
 export async function GET() {

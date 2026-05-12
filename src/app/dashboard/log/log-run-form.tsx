@@ -61,7 +61,7 @@ export function LogRunForm() {
     (parseFloat(durationMin) || 0) + (parseFloat(durationSec) || 0) / 60
   const distanceNum = parseFloat(distance) || 0
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault()
     if (!distance || distanceNum <= 0) {
       setError("Please enter a distance.")
@@ -97,8 +97,12 @@ export function LogRunForm() {
       setStatus("success")
       setTimeout(() => router.push("/dashboard"), 2000)
     } else {
-      const data = await res.json()
-      setError(data.error ?? "Something went wrong.")
+      let msg = "Something went wrong. Please try again."
+      try {
+        const data = await res.json()
+        msg = data.error ?? msg
+      } catch {}
+      setError(msg)
       setStatus("error")
     }
   }
